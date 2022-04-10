@@ -114,6 +114,26 @@ class MonteCarloPropogator():
         return self.means, self.covs
 
 
+def ics_doe(
+        n_ics, keplerian_bounds, central_body='earth'):
+    """Generate n_ics initial conditions in
+    inertial cartesian reference frame"""
+
+    if n_ics == 1:
+        keplerian_doe = np.random.uniform(size=(1, 6)) * (
+            np.max(keplerian_bounds, 1) - np.min(keplerian_bounds, 1)) + \
+            np.min(keplerian_bounds, 1)
+    else:
+        lhc_doe = lhs(6, n_ics, 'm', 20)
+        keplerian_doe = lhc_doe * (
+            np.max(keplerian_bounds, 1) - np.min(keplerian_bounds, 1)) + \
+            np.min(keplerian_bounds, 1)
+
+    # CONVERT TO CARTESIAN COORDS
+    ics = keplerian_to_cartesian(keplerian_doe, central_body)
+    return ics, keplerian_doe.transpose()
+
+
 if __name__ == "__main__":
     np.random.seed(123)
     # epochs [s]
@@ -134,7 +154,7 @@ if __name__ == "__main__":
     )
 
     N_ICS = 50
-    cart_ics, kepler_ics = generate_deterministic_initial_conditions(
+    cart_ics, kepler_ics = ics_doe(
         N_ICS, keplerian_bounds)
 
     # loop over ics and get moments for each trajectory

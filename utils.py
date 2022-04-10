@@ -128,26 +128,6 @@ def keplerian_to_cartesian(keplerian_elements, central_body='earth'):
          np.vstack([vel_x_coord, vel_y_coord, vel_z_coord])]).transpose()
 
 
-def generate_deterministic_initial_conditions(
-        n_ics, keplerian_bounds, central_body='earth'):
-    """Generate n_ics initial conditions in
-    inertial cartesian reference frame"""
-
-    if n_ics == 1:
-        keplerian_doe = np.random.uniform(size=(1, 6)) * (
-            np.max(keplerian_bounds, 1) - np.min(keplerian_bounds, 1)) + \
-            np.min(keplerian_bounds, 1)
-    else:
-        lhc_doe = lhs(6, n_ics, 'm', 20)
-        keplerian_doe = lhc_doe * (
-            np.max(keplerian_bounds, 1) - np.min(keplerian_bounds, 1)) + \
-            np.min(keplerian_bounds, 1)
-
-    # CONVERT TO CARTESIAN COORDS
-    ics = keplerian_to_cartesian(keplerian_doe, central_body)
-    return ics, keplerian_doe.transpose()
-
-
 def build_covariance_tensor(state_flows):
     p_tensor = []
     for pdf_state in state_flows.transpose(1, 2, 0):
