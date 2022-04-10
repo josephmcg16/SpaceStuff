@@ -80,9 +80,9 @@ class MonteCarloPropogator():
         for (element_name, element_value) in zip(self.orbitelems_names,
                                                  self.orbitelems0):
             pdf_orbitalelems0.append(
-                np.random.normal(loc=element_value,
-                                 scale=noise_std[element_name],
-                                 size=(n_samples)))
+                    np.random.normal(loc=element_value,
+                                     scale=noise_std[element_name],
+                                     size=(n_samples)))
         pdf_orbitalelems0 = np.asarray(pdf_orbitalelems0).transpose()
         return pdf_orbitalelems0
 

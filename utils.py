@@ -1,5 +1,7 @@
 import numpy as np
 from numpy.linalg import norm
+from pyDOE import lhs
+import matplotlib.pyplot as plt
 from celestial_bodies_data import mu_bodies
 
 
@@ -86,13 +88,13 @@ def keplerian_to_cartesian(keplerian_elements, central_body='earth'):
     argp = keplerian_elements[:, 4]  # argument of periapsis [rad]
     nu = keplerian_elements[:, 5]  # true anomaly [rad]
 
-    peri = a*(1-e ** 2)
+    peri = a*(1-e**2)
     r_0 = peri / (1 + e * np.cos(nu))
 
     x_pos = r_0 * np.cos(nu)
     y_pos = r_0 * np.sin(nu)
 
-    vel_x_ = -np.sqrt(mu/peri) * np.sin(nu)
+    vel_x_ = -(mu/peri) ** (1/2) * np.sin(nu)
     vel_y_ = (mu/peri) ** (1/2) * (e + np.cos(nu))
 
     x_coord = (np.cos(Omega) * np.cos(argp) - np.sin(Omega) * np.sin(argp) *
@@ -124,3 +126,43 @@ def keplerian_to_cartesian(keplerian_elements, central_body='earth'):
     return np.vstack(
         [np.vstack([x_coord, y_coord, z_coord]),
          np.vstack([vel_x_coord, vel_y_coord, vel_z_coord])]).transpose()
+
+
+def generate_deterministic_initial_conditions(
+        n_ics, keplerian_bounds, central_body='earth'):
+    """Generate n_ics initial conditions in
+    inertial cartesian reference frame"""
+
+    if n_ics == 1:
+        keplerian_doe = np.random.uniform(size=(1, 6)) * (
+            np.max(keplerian_bounds, 1) - np.min(keplerian_bounds, 1)) + \
+            np.min(keplerian_bounds, 1)
+    else:
+        lhc_doe = lhs(6, n_ics, 'm', 20)
+        keplerian_doe = lhc_doe * (
+            np.max(keplerian_bounds, 1) - np.min(keplerian_bounds, 1)) + \
+            np.min(keplerian_bounds, 1)
+
+    # CONVERT TO CARTESIAN COORDS
+    ics = keplerian_to_cartesian(keplerian_doe, central_body)
+    return ics, keplerian_doe.transpose()
+
+
+def build_covariance_tensor(state_flows):
+    p_tensor = []
+    for pdf_state in state_flows.transpose(1, 2, 0):
+        p_tensor.append(np.cov(pdf_state))
+    return np.asarray(p_tensor)
+
+
+def plot_trajectory(states):
+    """3d plot of a single trajectory"""
+    fig, axes = plt.subplots(subplot_kw={'projection': '3d'})
+    axes.scatter(0, 0, 0)
+    axes.plot(states[0, 0], states[0, 1], states[0, 2],
+              marker='*', markersize=7)
+    axes.plot(states[:, 0], states[:, 1], states[:, 2])
+    axes.set_xlabel(r'$\mathbf{r}_1$ [km]')
+    axes.set_ylabel(r'$\mathbf{r}_2$ [km]')
+    axes.set_zlabel(r'$\mathbf{r}_3$ [km]')
+    return fig, axes
