@@ -101,7 +101,6 @@ class MonteCarloPropogator():
             tbp_obj.propogate(t_eval=t_eval, method=method,
                               max_step=max_step, tol=tol)
             state_flows.append(tbp_obj.states)
-            print(f'\t{k}')
 
         # set up interpolation for algorithm chosen sol.t ???
         if t_eval is None:
@@ -146,6 +145,5 @@ if __name__ == "__main__":
         means, covs = mc_tbp.propogate(n_samples=20, t_eval=epochs, tol=1e-10)
         mean_tensor.append(means)
         cov_tensor.append(covs)
-        print(i+1)
     mean_tensor = np.asarray(mean_tensor)
     cov_tensor = np.asarray(cov_tensor)
