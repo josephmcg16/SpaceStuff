@@ -131,7 +131,7 @@ def ics_doe(
 
     # CONVERT TO CARTESIAN COORDS
     ics = keplerian_to_cartesian(keplerian_doe, central_body)
-    return ics, keplerian_doe.transpose()
+    return ics, keplerian_doe
 
 
 if __name__ == "__main__":
