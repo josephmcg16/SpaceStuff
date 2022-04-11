@@ -1,9 +1,30 @@
+"""Propogating Two Body Problem.
+
+Imports twobodyproblem_cartesian ode from the ode_solvers module
+for use with the solve_ivp integrator from scipy.
+
+* 'TwoProblemPropogator' class for a single trajectory.
+
+* 'MonteCarloPropogator' class for sampling from an initial
+probability distribution and calculating the first 2 statistical moments
+
+* 'keplerian_ics_doe' function constructs a random latin-hypercube
+based on the input bounds dictionary (keys are the orbital elements and
+the values are the corresponding bounds)
+
+* 'main' shows an example run used for our application.
+"""
 import numpy as np
 from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
 
-from celestial_bodies_data import mu_bodies
-from utils import *
+from pyDOE import lhs
+
+import celestial_bodies_data as cb_data
+from ode_solvers import twobodyproblem_cartesian as ode
+
+from utils import cartesian_to_keplerian, keplerian_to_cartesian, \
+                  build_covariance_matrix
 
 plt.rcParams['text.usetex'] = True
 
@@ -25,23 +46,16 @@ class TwoBodyProblemPropogator:
 
         self.central_body = central_body.lower()
 
-    @staticmethod
-    def ode(epoch, state_vec, mu_body):
-        pos_vec = state_vec[:3]
-        vel_vec = state_vec[3:]
-        acc_vec = -mu_body * (pos_vec/(np.linalg.norm(pos_vec) ** 3))
-        return np.hstack([vel_vec, acc_vec])
-
     def propogate(self, t_eval=None, method='RK45', max_step=np.inf, tol=1e-6):
-        """intgrate deterministic dynamics '__ode'"""
+        """intgrate deterministic dynamics 'ode'"""
         sol = solve_ivp(
-            fun=self.ode,
+            fun=ode,
             t_span=self.t_span,
             y0=self.state0,
             method=method,
             t_eval=t_eval, max_step=max_step,
             rtol=tol, atol=tol,
-            args=(mu_bodies[self.central_body],)
+            args=(cb_data.mu_bodies[self.central_body],)
         )
         if sol.status == -1:
             raise RuntimeError(sol.message)
@@ -54,70 +68,93 @@ class TwoBodyProblemPropogator:
 
 
 class MonteCarloPropogator():
+    """class for the Monte Carlo simulation"""
     def __init__(self, state0, t_span, n_samples=50,
-                 central_body='earth', initial_pdf='normal'):
+                 initial_pdf_type='normal', initial_noise_std=None,
+                 central_body='earth',):
         self.state0 = state0  # [km, km, km, km/s, km/s, km/s]
         self.orbitelems0 = cartesian_to_keplerian(self.state0)[0]
-
         self.orbitelems_names = ['a', 'e', 'i', 'Omega', 'argp', 'nu']
 
         self.t_span = t_span  # [s]
+        self.epochs = [self.t_span[0]]
 
         self.central_body = central_body.lower()
 
         self.n_samples = n_samples
+        self.initial_pdf_type = initial_pdf_type
+        if initial_noise_std is None:
+            self.initial_noise_std = dict(
+                zip(self.orbitelems_names, [
+                    30e-3, 30e-3, 36*4.84814e-6,
+                    36*4.84814e-6, 36*4.84814e-6, 36*4.84814e-6
+                    ]))
+        else:
+            self.initial_noise_std = initial_noise_std
 
-    @staticmethod
-    def initial_probability_distributions(
-            self, n_samples, noise_std=None):
-        if noise_std is None:
-            noise_std = dict(zip(self.orbitelems_names, [
-                30e-3, 30e-3, 36*4.84814e-6,
-                36*4.84814e-6, 36*4.84814e-6, 36*4.84814e-6]))
-        self.noise_std = noise_std
+        self.pdf_orbitalelems0 = self.__initial_probability_distributions(
+            self.n_samples, self.initial_noise_std, self.initial_pdf_type)
 
+        self.pdf_state0 = keplerian_to_cartesian(self.pdf_orbitalelems0)
+
+        self.state_flows = np.asarray([self.state0])
+        self.orbitelems_flows = np.asarray([self.orbitelems0])
+        self.means = None
+        self.means_orbitelems = None
+        self.covs = None
+        self.covs_orbitelems = None
+
+    def __initial_probability_distributions(
+            self, n_samples, initial_noise_std, initial_pdf_type):
         pdf_orbitalelems0 = []
         for (element_name, element_value) in zip(self.orbitelems_names,
                                                  self.orbitelems0):
-            pdf_orbitalelems0.append(
-                np.random.normal(loc=element_value,
-                                 scale=noise_std[element_name],
-                                 size=(n_samples)))
+            if initial_pdf_type.lower() == 'normal':
+                self.initial_pdf_type = initial_pdf_type
+                pdf_orbitalelems0.append(
+                    np.random.normal(loc=element_value,
+                                     scale=initial_noise_std[element_name],
+                                     size=(n_samples)))
+            else:
+                raise(ValueError(
+                    f'distribution {initial_pdf_type} not known by module.'))
+
         pdf_orbitalelems0 = np.asarray(pdf_orbitalelems0).transpose()
         return pdf_orbitalelems0
 
-    def propogate(self, n_samples=None, noise_std=None, t_eval=None,
-                  method='RK45', max_step=np.inf, tol=1e-7):
-        if n_samples is not None:
-            self.n_samples = n_samples
-        self.pdf_orbitalelems0 = self.initial_probability_distributions(
-            self, n_samples, noise_std)
-        self.pdf_state0 = keplerian_to_cartesian(self.pdf_orbitalelems0)
-
+    def propogate(self, t_eval=None, method='RK45', max_step=np.inf, tol=1e-7):
+        """propogate samples of the initial probability distribution"""
         state_flows = []
-        for k, state0 in enumerate(self.pdf_state0):
+        orbitelems_flows = []
+        for state0 in self.pdf_state0:
             tbp_obj = TwoBodyProblemPropogator(
-                state0, self.t_span, self.central_body, compute_elems=False)
+                state0, self.t_span, self.central_body)
             tbp_obj.propogate(t_eval=t_eval, method=method,
                               max_step=max_step, tol=tol)
             state_flows.append(tbp_obj.states)
+            orbitelems_flows.append(tbp_obj.orbitelems)
 
         # set up interpolation for algorithm chosen sol.t ???
         if t_eval is None:
             self.state_flows = state_flows
+            self.orbitelems_flows = orbitelems_flows
             self.means = None
             self.covs = None
         else:
+            self.epochs = t_eval
             self.state_flows = np.asarray(state_flows)
+            self.orbitelems_flows = np.asarray(orbitelems_flows)
             self.means = np.mean(self.state_flows, 0)
-            self.covs = build_covariance_tensor(self.state_flows)
+            self.means_orbitelems = np.mean(self.orbitelems_flows, 0)
+            self.covs = build_covariance_matrix(self.state_flows)
+            self.covs_orbitelems = build_covariance_matrix(
+                self.orbitelems_flows)
         return self.means, self.covs
 
 
-def ics_doe(
+def keplerian_ics_doe(
         n_ics, keplerian_bounds, central_body='earth'):
-    """Generate n_ics initial conditions in
-    inertial cartesian reference frame"""
+    """Generate n_ics initial conditions of classical orbital elemennts"""
 
     if n_ics == 1:
         keplerian_doe = np.random.uniform(size=(1, 6)) * (
@@ -135,35 +172,84 @@ def ics_doe(
 
 
 if __name__ == "__main__":
-    np.random.seed(123)
-    # epochs [s]
-    T0 = 0
-    TF = 3600
-    DT = 5
-    epochs = np.arange(T0, TF, DT)
+    from time import time
 
-    a_bounds = [1000, 2000]  # semi-major axis [km]
-    e_bounds = [0, 0.5]  # eccentricity [-]
-    i_bounds = [0, np.pi]  # inclination [rad]
-    Omega_bounds = [0, 2*np.pi]  # right ascension [rad]
-    argp_bounds = [0, 2*np.pi]  # argument of periapsis [rad]
-    nu_bounds = [0, 2*np.pi]  # true anomaly [rad]
+    def main():
+        """example script for the module
+        output is around 1.9GB"""
+        # NOMINAL TRAJECTORIES DOE
+        N_ICS = 500
 
-    keplerian_bounds = np.asarray(
-        [a_bounds, e_bounds, i_bounds, Omega_bounds, argp_bounds, nu_bounds]
-    )
+        a_bounds = [1000, 2000]  # semi-major axis [km]
+        e_bounds = [0, 0.5]  # eccentricity [-]
+        i_bounds = [0, np.pi]  # inclination [rad]
+        Omega_bounds = [0, 2*np.pi]  # right ascension [rad]
+        argp_bounds = [0, 2*np.pi]  # argument of periapsis [rad]
+        nu_bounds = [0, 2*np.pi]  # true anomaly [rad]
 
-    N_ICS = 50
-    cart_ics, kepler_ics = ics_doe(
-        N_ICS, keplerian_bounds)
+        keplerian_bounds = np.asarray([
+                a_bounds, e_bounds, i_bounds,
+                Omega_bounds, argp_bounds, nu_bounds
+            ]
+        )
 
-    # loop over ics and get moments for each trajectory
-    mean_tensor = []
-    cov_tensor = []
-    for i, state0 in enumerate(cart_ics):
-        mc_tbp = MonteCarloPropogator(state0, [T0, TF])
-        means, covs = mc_tbp.propogate(n_samples=20, t_eval=epochs, tol=1e-10)
-        mean_tensor.append(means)
-        cov_tensor.append(covs)
-    mean_tensor = np.asarray(mean_tensor)
-    cov_tensor = np.asarray(cov_tensor)
+        cart_ics, kepler_ics = keplerian_ics_doe(N_ICS, keplerian_bounds)
+
+        # INITIAL PDF
+        range_err = 30e-3  # [km]
+        angle_err = 36*4.84814e-6  # [rad]
+
+        noise_std = {
+            'a': range_err,
+            'e': range_err,
+            'i': angle_err,
+            'Omega': angle_err,
+            'argp': angle_err,
+            'nu': angle_err
+        }
+
+        distribution_type = 'normal'
+
+        # PROPOGATE SAMPLES OF EACH INITIAL PDF
+        T0 = 0
+        TF = 3600
+        DT = 50
+        epochs = np.arange(T0, TF, DT)
+
+        m_samples = 50  # number of samples
+
+        monte_carlo_sims = []
+        tic = time()
+        for i, state0_nominal in enumerate(cart_ics):
+            mc_sim = MonteCarloPropogator(
+                state0=state0_nominal,
+                t_span=[T0, TF],
+                n_samples=m_samples,
+                initial_pdf_type=distribution_type,
+                initial_noise_std=noise_std,
+                central_body='earth'
+            )
+            mc_sim.propogate(
+                t_eval=epochs,  # could interpolate to speed up solver?
+                method='RK45',
+                max_step=DT,
+                tol=1e-10
+            )
+            monte_carlo_sims.append(mc_sim)
+
+            # progress bar code
+            eta = (time()-tic) * (N_ICS/(i+1) - 1)
+            print(f'\rTrajectory : {i+1}/{N_ICS}\tETA [s] : {round(eta)}',
+                  end='\r')
+        print(f'\rTrajectory : {N_ICS}/{N_ICS}\tETA [s] : COMPLETE',
+              end='\n')
+
+        monte_carlo_sims = np.array(monte_carlo_sims, dtype=object)
+
+        # save .npy array of <MonteCarloPropogator> objects
+        file_prefix = 'data'
+        file_path = f'{file_prefix}\\monte_carlo_sims_{N_ICS}ics_{10}smp.npy'
+        np.save(file_path, monte_carlo_sims)
+        return 0
+
+    main()

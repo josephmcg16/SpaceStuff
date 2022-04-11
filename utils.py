@@ -1,6 +1,8 @@
+"""misc functions used by other modules.
+This is not meant to be tidy... sorry :("""
 import numpy as np
 from numpy.linalg import norm
-from pyDOE import lhs
+
 import matplotlib.pyplot as plt
 from celestial_bodies_data import mu_bodies
 
@@ -36,9 +38,7 @@ def cartesian_to_keplerian(states, central_body='earth', tol=1e-10):
 
         if abs(e - 1) > tol:
             a = - mu / (2 * E)
-            p = a * (1 - e**2)
         else:
-            p = norm(h_vec)**2 / mu
             a = np.inf
 
         i = np.arccos(h_vec[2]/norm(h_vec))
@@ -128,7 +128,8 @@ def keplerian_to_cartesian(keplerian_elements, central_body='earth'):
          np.vstack([vel_x_coord, vel_y_coord, vel_z_coord])]).transpose()
 
 
-def build_covariance_tensor(state_flows):
+def build_covariance_matrix(state_flows):
+    """covariance of a state vector over multiple time steps"""
     p_tensor = []
     for pdf_state in state_flows.transpose(1, 2, 0):
         p_tensor.append(np.cov(pdf_state))
