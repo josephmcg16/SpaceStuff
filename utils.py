@@ -147,3 +147,26 @@ def plot_trajectory(states):
     axes.set_ylabel(r'$\mathbf{r}_2$ [km]')
     axes.set_zlabel(r'$\mathbf{r}_3$ [km]')
     return fig, axes
+
+
+def stat_moments(means, covs, n_moments=2):
+    """return centralised statistical moments for time-series mean
+    and covariance matrix"""
+
+    E1_tensor = means
+    if n_moments == 1:
+        return E1_tensor
+    elif n_moments == 2:
+        n_dim = np.size(means, 2)
+
+        E2_tensor = []
+        for mean_t, cov_t in zip(means, covs):
+            E = np.zeros((n_dim, n_dim))
+            for i in range(n_dim):
+                for j in range(n_dim):
+                    E[i, j] = mean_t[i] * mean_t[j] + cov_t[i, j]
+            E2_tensor.append(E)
+        E2_tensor = np.asarray(E2_tensor)
+        return E1_tensor, E2_tensor
+    else:
+        raise ValueError('Moments order greater than 2 not set up yet...')
