@@ -2,6 +2,9 @@
 This is not meant to be tidy... sorry :("""
 import numpy as np
 from numpy.linalg import norm
+from scipy import stats
+
+from warnings import warn
 
 import matplotlib.pyplot as plt
 from celestial_bodies_data import mu_bodies
@@ -128,14 +131,6 @@ def keplerian_to_cartesian(keplerian_elements, central_body='earth'):
          np.vstack([vel_x_coord, vel_y_coord, vel_z_coord])]).transpose()
 
 
-def build_covariance_matrix(state_flows):
-    """covariance of a state vector over multiple time steps"""
-    p_tensor = []
-    for pdf_state in state_flows.transpose(1, 2, 0):
-        p_tensor.append(np.cov(pdf_state))
-    return np.asarray(p_tensor)
-
-
 def plot_trajectory(states):
     """3d plot of a single trajectory"""
     fig, axes = plt.subplots(subplot_kw={'projection': '3d'})
@@ -149,24 +144,30 @@ def plot_trajectory(states):
     return fig, axes
 
 
-def stat_moments(means, covs, n_moments=2):
-    """return centralised statistical moments for time-series mean
-    and covariance matrix"""
+def build_covariance_matrix(state_flows):
+    """covariance of a state vector over multiple time steps"""
+    p_tensor = []
+    for pdf_state in state_flows.transpose(1, 2, 0):
+        p_tensor.append(np.cov(pdf_state))
+    return np.asarray(p_tensor)
 
-    E1_tensor = means
-    if n_moments == 1:
-        return E1_tensor
-    elif n_moments == 2:
-        n_dim = np.size(means, 2)
 
-        E2_tensor = []
-        for mean_t, cov_t in zip(means, covs):
-            E = np.zeros((n_dim, n_dim))
-            for i in range(n_dim):
-                for j in range(n_dim):
-                    E[i, j] = mean_t[i] * mean_t[j] + cov_t[i, j]
-            E2_tensor.append(E)
-        E2_tensor = np.asarray(E2_tensor)
-        return E1_tensor, E2_tensor
-    else:
-        raise ValueError('Moments order greater than 2 not set up yet...')
+def gaussian_pdf(state_flows, means, covs):
+    """return Gaussian probability density function
+    for each time-series of samples"""
+    pdf = []
+    for state_samples, mean, cov in zip(state_flows.transpose(1, 0, 2),
+                                        means, covs):
+        try:
+            mv_norm = stats.multivariate_normal(mean, cov,
+                                                allow_singular=False)
+        except np.linalg.LinAlgError:
+            warn(RuntimeWarning('Ill conditioned covs matrix.'))
+            mv_norm = stats.multivariate_normal(mean, cov,
+                                                allow_singular=True)
+        pdf_t = np.asarray(
+            [mv_norm.pdf(state) for state in state_samples]
+        )
+        pdf.append(pdf_t)
+    pdf = np.asarray(pdf)
+    return pdf
