@@ -52,18 +52,18 @@ if __name__ == "__main__":
         DATA_SET = f'train{train_num+1}_x'
         np.save(f'data\\{DATA_PREFIX}_{DATA_SET}.npy', states)
 
-# VALIDATION FILE
-NUM_OF_ICS = 3000
-initial_conditions = generate_initial_conditions(NUM_OF_ICS)
+    # VALIDATION FILE
+    NUM_OF_ICS = 3000
+    initial_conditions = generate_initial_conditions(NUM_OF_ICS)
 
-# PROPOGATE TRAJECTORIES
-states = []
-for state0 in tqdm(initial_conditions, desc="Trajectory"):
-    tbp = TwoBodyProblemPropogator(state0, [T_0, T_F], 'earth')
-    states.append(tbp.propogate(EPOCHS, tol=1e-10))
+    # PROPOGATE TRAJECTORIES
+    states = []
+    for state0 in tqdm(initial_conditions, desc="Trajectory"):
+        tbp = TwoBodyProblemPropogator(state0, [T_0, T_F], 'earth')
+        states.append(tbp.propogate(EPOCHS, tol=1e-10))
 
-states = np.asarray(states)
+    states = np.asarray(states)
 
-# SAVE TRAJECTORIES AS .NPY DATA FILE
-DATA_SET = f'val_x'
-np.save(f'data\\{DATA_PREFIX}_{DATA_SET}.npy', states)
+    # SAVE TRAJECTORIES AS .NPY DATA FILE
+    DATA_SET = f'val_x'
+    np.save(f'data\\{DATA_PREFIX}_{DATA_SET}.npy', states)
