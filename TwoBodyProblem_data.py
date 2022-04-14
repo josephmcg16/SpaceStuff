@@ -8,6 +8,8 @@ from twobodyproblem.twobodypropogator import keplerian_ics_doe, \
 
 
 if __name__ == "__main__":
+    np.random.seed(123)
+
     DATA_PREFIX = 'TwoBodyProblem'
     NUM_OF_ICS = 600  # number of initial condition in each file
     NUM_OF_TRAIN = 20  # number of training data files
@@ -51,7 +53,7 @@ if __name__ == "__main__":
         np.save(f'data\\{DATA_PREFIX}_{DATA_SET}.npy', states)
 
 # VALIDATION FILE
-NUM_OF_ICS = 30000
+NUM_OF_ICS = 3000
 initial_conditions = generate_initial_conditions(NUM_OF_ICS)
 
 # PROPOGATE TRAJECTORIES
