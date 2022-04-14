@@ -3,8 +3,8 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 
-from DenseResBlock import DenseResBlock
-from RelMSE import RelMSE
+from architecture.DenseResBlock import DenseResBlock
+from architecture.RelMSE import RelMSE
 
 
 class NetworkArch(keras.Model):

@@ -48,4 +48,5 @@ class DenseResBlock(keras.layers.Layer):
         x = inputs
         for layer in self.layers:
             x = layer(x)
+        print(x.shape)
         return inputs + x  # Add input to output
