@@ -20,11 +20,12 @@ import matplotlib.pyplot as plt
 
 from pyDOE import lhs
 
-import celestial_bodies_data as cb_data
-from ode_solvers import twobodyproblem_cartesian as ode
+import twobodyproblem.celestial_bodies_data as cb_data
+from twobodyproblem.ode_solvers import twobodyproblem_cartesian as ode
 
-from utils import cartesian_to_keplerian, keplerian_to_cartesian, \
-                  build_covariance_matrix
+from twobodyproblem.utils import cartesian_to_keplerian, \
+                                 keplerian_to_cartesian, \
+                                 build_covariance_matrix
 
 plt.rcParams['text.usetex'] = True
 
@@ -178,83 +179,78 @@ def keplerian_ics_doe(
 if __name__ == "__main__":
     from time import time
 
-    def main():
-        """example script for the module"""
-        # NOMINAL TRAJECTORIES DOE
-        N_ICS = 1000
+    # NOMINAL TRAJECTORIES DOE
+    N_ICS = 1000
 
-        a_bounds = [1000, 2000]  # semi-major axis [km]
-        e_bounds = [0, 0.5]  # eccentricity [-]
-        i_bounds = [0, np.pi]  # inclination [rad]
-        Omega_bounds = [0, 2*np.pi]  # right ascension [rad]
-        argp_bounds = [0, 2*np.pi]  # argument of periapsis [rad]
-        nu_bounds = [0, 2*np.pi]  # true anomaly [rad]
+    a_bounds = [1000, 2000]  # semi-major axis [km]
+    e_bounds = [0, 0.5]  # eccentricity [-]
+    i_bounds = [0, np.pi]  # inclination [rad]
+    Omega_bounds = [0, 2*np.pi]  # right ascension [rad]
+    argp_bounds = [0, 2*np.pi]  # argument of periapsis [rad]
+    nu_bounds = [0, 2*np.pi]  # true anomaly [rad]
 
-        keplerian_bounds = np.asarray([
-                a_bounds, e_bounds, i_bounds,
-                Omega_bounds, argp_bounds, nu_bounds
-            ]
+    keplerian_bounds = np.asarray([
+            a_bounds, e_bounds, i_bounds,
+            Omega_bounds, argp_bounds, nu_bounds
+        ]
+    )
+
+    cart_ics, kepler_ics = keplerian_ics_doe(N_ICS, keplerian_bounds)
+
+    # INITIAL PDF
+    range_err = 30e-3  # [km]
+    angle_err = 36*4.84814e-6  # [rad]
+
+    noise_std = {
+        'a': range_err,
+        'e': range_err,
+        'i': angle_err,
+        'Omega': angle_err,
+        'argp': angle_err,
+        'nu': angle_err
+    }
+
+    distribution_type = 'normal'
+
+    # PROPOGATE SAMPLES OF EACH INITIAL PDF
+    T0 = 0
+    TF = 3600
+    DT = 50
+    epochs = np.arange(T0, TF, DT)
+
+    m_samples = 500  # number of samples
+
+    monte_carlo_sims = []
+    tic = time()
+    tic = time()
+    for i, state0_nominal in enumerate(cart_ics):
+        mc_sim = MonteCarloPropogator(
+            state0=state0_nominal,
+            t_span=[T0, TF],
+            n_samples=m_samples,
+            initial_pdf_type=distribution_type,
+            initial_noise_std=noise_std,
+            central_body='earth'
         )
+        mc_sim.propogate(
+            t_eval=epochs,
+            method='RK45',
+            max_step=DT,
+            tol=1e-10
+        )
+        monte_carlo_sims.append(mc_sim)
 
-        cart_ics, kepler_ics = keplerian_ics_doe(N_ICS, keplerian_bounds)
+        # progress bar for output
+        eta = round((time()-tic) * (N_ICS/(i+1) - 1)/60, 2)
+        print(
+            f'\rCompleted Trajectory : {i+1}/{N_ICS}\tETA [mins] : {eta}',
+            end='\r')
+    print(f'SIMULATION COMPLETE')
 
-        # INITIAL PDF
-        range_err = 30e-3  # [km]
-        angle_err = 36*4.84814e-6  # [rad]
+    monte_carlo_sims = np.array(monte_carlo_sims, dtype=object)
 
-        noise_std = {
-            'a': range_err,
-            'e': range_err,
-            'i': angle_err,
-            'Omega': angle_err,
-            'argp': angle_err,
-            'nu': angle_err
-        }
-
-        distribution_type = 'normal'
-
-        # PROPOGATE SAMPLES OF EACH INITIAL PDF
-        T0 = 0
-        TF = 3600
-        DT = 50
-        epochs = np.arange(T0, TF, DT)
-
-        m_samples = 500  # number of samples
-
-        monte_carlo_sims = []
-        tic = time()
-        tic = time()
-        for i, state0_nominal in enumerate(cart_ics):
-            mc_sim = MonteCarloPropogator(
-                state0=state0_nominal,
-                t_span=[T0, TF],
-                n_samples=m_samples,
-                initial_pdf_type=distribution_type,
-                initial_noise_std=noise_std,
-                central_body='earth'
-            )
-            mc_sim.propogate(
-                t_eval=epochs,
-                method='RK45',
-                max_step=DT,
-                tol=1e-10
-            )
-            monte_carlo_sims.append(mc_sim)
-
-            # progress bar for output
-            eta = round((time()-tic) * (N_ICS/(i+1) - 1)/60, 2)
-            print(
-                f'\rCompleted Trajectory : {i+1}/{N_ICS}\tETA [mins] : {eta}',
-                end='\r')
-        print(f'SIMULATION COMPLETE')
-
-        monte_carlo_sims = np.array(monte_carlo_sims, dtype=object)
-
-        # save .npy array of <MonteCarloPropogator> objects
-        file_prefix = 'data'
-        file_path = f'{file_prefix}\\monte_carlo_sims_{N_ICS}' \
-                    f'ics_{m_samples}smp.npy'
-        np.save(file_path, monte_carlo_sims)
-        return 0
-
-    main()
+    # save .npy array of <MonteCarloPropogator> objects
+    file_prefix = 'data'
+    file_path = f'{file_prefix}\\monte_carlo_sims_{N_ICS}' \
+                f'ics_{m_samples}smp.npy'
+    np.save(file_path, monte_carlo_sims)
