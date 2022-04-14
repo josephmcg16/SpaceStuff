@@ -10,7 +10,7 @@ from twobodyproblem.twobodypropogator import keplerian_ics_doe, \
 
 if __name__ == "__main__":
     DATA_PREFIX = 'TwoBodyProblem'
-    NUM_OF_ICS = 1000  # number of initial condition in each file
+    NUM_OF_ICS = 500  # number of initial condition in each file
     NUM_OF_TEST = 5  # number of testing data files
 
     # TIME STEPS [s]
@@ -48,5 +48,5 @@ if __name__ == "__main__":
         states = np.asarray(states)
 
         # SAVE TRAJECTORIES AS .NPY DATA FILE
-        DATA_SET = f'train{test_num}_x'
+        DATA_SET = f'test{test_num+1}_x'
         np.save(f'data\\{DATA_PREFIX}_{DATA_SET}.npy', states)
