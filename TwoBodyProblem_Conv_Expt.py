@@ -12,7 +12,7 @@ from architecture.RelMSE import RelMSE
 if __name__ == "__main__":
     EXPT_NAME = 'TwoBodyProblem_Expt'
     DATA_FILE_PREFIX = 'data/TwoBodyProblem'
-    LEN_TIME, N_INPUTS = getdatasize(DATA_FILE_PREFIX)[:2]
+    LEN_TIME, N_INPUTS = getdatasize(DATA_FILE_PREFIX)[1:]
 
     # Set parameters
     N_LATENT = 20  # size of autencoder latent dimension
