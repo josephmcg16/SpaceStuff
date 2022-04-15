@@ -34,8 +34,8 @@ def get_data(data_file_prefix, data_train_len, num_shifts):
     """Load and organize data."""
     # Load in the data
     data_train = np.vstack([np.load(
-            f'{data_file_prefix}_train{train_num+1}_x.npy'
-            ) for train_num in range(data_train_len)])
+        f'{data_file_prefix}_train{train_num+1}_x.npy'
+    ) for train_num in range(data_train_len)])
 
     data_val = np.load(f'{data_file_prefix}_val_x.npy')
 
