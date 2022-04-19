@@ -7,8 +7,8 @@ from celestial_bodies_data import mu_bodies
 
 def observation(state0, T0, t, tol):
     tbp = TwoBodyProblemPropogator(state0, [T0, t], ode='polar_ode')
-    state = tbp.propogate(tol=tol)[-1]
-    return state
+    final_state = tbp.propogate(tol=tol)[-1]
+    return final_state
 
 
 if __name__ == '__main__':
