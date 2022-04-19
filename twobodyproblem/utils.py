@@ -8,7 +8,7 @@ from warnings import warn
 
 import matplotlib.pyplot as plt
 
-from twobodyproblem.celestial_bodies_data import mu_bodies
+from celestial_bodies_data import mu_bodies
 
 
 def cartesian_to_keplerian(states, central_body='earth', tol=1e-10):

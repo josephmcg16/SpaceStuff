@@ -20,10 +20,11 @@ import matplotlib.pyplot as plt
 
 from pyDOE import lhs
 
-import twobodyproblem.celestial_bodies_data as cb_data
-from twobodyproblem.ode_solvers import twobodyproblem_cartesian as ode
+import celestial_bodies_data as cb_data
+from ode_solvers import twobodyproblem_cartesian as cart_ode
+from ode_solvers import twobodyproblem_polar as polar_ode
 
-from twobodyproblem.utils import cartesian_to_keplerian, \
+from utils import cartesian_to_keplerian, \
                                  keplerian_to_cartesian, \
                                  build_covariance_matrix
 
@@ -34,13 +35,23 @@ class TwoBodyProblemPropogator:
     """class for orbit propogation of two body problem trajectory"""
 
     def __init__(self, state0, t_span,
-                 central_body='earth', compute_elems=True):
-        self.state0 = state0  # [km, km, km, km/s, km/s, km/s]
-        self.states = np.expand_dims(state0, 0)
-        if compute_elems:
+                 central_body='earth', ode='cart_ode'):
+        if ode == 'cart_ode':
+            self.ode = cart_ode
+            self.compute_elems = True
             self.orbitelems0 = cartesian_to_keplerian(self.states)[0]
             self.orbitelems = np.expand_dims(self.orbitelems0, 0)
             self.orbitelems_names = ['a', 'e', 'i', 'Omega', 'argp', 'nu']
+
+        elif ode == 'polar_ode':
+            self.ode = polar_ode
+            self.compute_elems = False
+        
+        else:
+            raise ValueError(f"ODE '{ode}' not known")
+        
+        self.state0 = state0
+        self.states = np.expand_dims(state0, 0)
 
         self.t_span = t_span  # [s]
         self.epochs = [self.t_span[0]]
@@ -50,7 +61,7 @@ class TwoBodyProblemPropogator:
     def propogate(self, t_eval=None, method='RK45', max_step=np.inf, tol=1e-6):
         """intgrate deterministic dynamics 'ode'"""
         sol = solve_ivp(
-            fun=ode,
+            fun=self.ode,
             t_span=self.t_span,
             y0=self.state0,
             method=method,
@@ -64,7 +75,8 @@ class TwoBodyProblemPropogator:
             raise RuntimeError(sol.message)
 
         self.states = sol.y.transpose()
-        self.orbitelems = cartesian_to_keplerian(self.states)
+        if self.compute_elems:
+            self.orbitelems = cartesian_to_keplerian(self.states)
 
         self.epochs = sol.t
         return self.states
@@ -158,7 +170,7 @@ class MonteCarloPropogator():
 
 
 def keplerian_ics_doe(
-        n_ics, keplerian_bounds, central_body='earth'):
+        n_ics, keplerian_bounds, coords='cart', central_body='earth'):
     """Generate n_ics initial conditions of classical orbital elemennts"""
 
     if n_ics == 1:
@@ -172,8 +184,21 @@ def keplerian_ics_doe(
             np.min(keplerian_bounds, 1)
 
     # CONVERT TO CARTESIAN COORDS
-    ics = keplerian_to_cartesian(keplerian_doe, central_body)
-    return ics, keplerian_doe
+    ics_cart = keplerian_to_cartesian(keplerian_doe, central_body)
+    if coords == 'cart':
+        return ics_cart, keplerian_doe
+    elif coords == 'polar':
+        ics_polar = []
+        for state0_cart in ics_cart:
+            [x, y, z, vx, vy, vz] = state0_cart
+            r = np.sqrt(x**2 + y**2)
+            theta = np.arctan(x / y)
+            vr = (x * vx + y * vy) / np.sqrt(x**2 + y**2)
+            vt = r * (x * vy - y * vx) / (x**2 + y**2)
+            state0_polar = np.array([r, theta, vr, vt])
+            ics_polar.append(state0_polar)
+        ics_polar = np.asarray(ics_polar)
+        return ics_polar, keplerian_doe
 
 
 if __name__ == "__main__":
