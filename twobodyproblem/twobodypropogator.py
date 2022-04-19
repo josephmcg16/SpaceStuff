@@ -192,7 +192,14 @@ def keplerian_ics_doe(
         for state0_cart in ics_cart:
             [x, y, z, vx, vy, vz] = state0_cart
             r = np.sqrt(x**2 + y**2)
-            theta = np.arctan(x / y)
+            theta = np.arctan(x / y)  # first quadrant
+            if (x < 0) and (y > 0):
+                theta = theta - np.pi  # second quadrant
+            if (x < 0) and (y < 0):
+                theta = theta + np.pi  # third quadrant
+            if (x > 0) and (y < 0):
+                theta = 2 * np.pi + theta  # fourth quadrant
+
             vr = (x * vx + y * vy) / np.sqrt(x**2 + y**2)
             vt = r * (x * vy - y * vx) / (x**2 + y**2)
             state0_polar = np.array([r, theta, vr, vt])
