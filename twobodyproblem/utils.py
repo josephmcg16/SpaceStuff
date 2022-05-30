@@ -3,6 +3,7 @@ This is not meant to be tidy... sorry :("""
 import numpy as np
 from numpy.linalg import norm
 from scipy import stats
+from scipy.interpolate import griddata
 
 from warnings import warn
 
@@ -172,3 +173,25 @@ def gaussian_pdf(state_flows, means, covs):
         pdf.append(pdf_t)
     pdf = np.asarray(pdf)
     return pdf
+
+
+def grid_matrices3D(arr, n_points):
+    """Return interpolated surface mesh of a 3D array
+
+    Args:
+        arr (ndarray): Data matrix representing 3D surface
+        n_points (_type_): Number of interpolated points
+
+    Returns:
+        tuple: Mesh grids for each dimension
+    """
+    x = arr[0]
+    y = arr[1]
+    z = arr[2]
+
+    xi = np.linspace(min(x), max(x), num=n_points)
+    yi = np.linspace(min(y), max(y), num=n_points)
+    x_grid, y_grid = np.meshgrid(xi, yi)
+    z_grid = griddata((x, y), z, (x_grid, y_grid), method='cubic')
+
+    return x_grid, y_grid, z_grid
