@@ -187,7 +187,11 @@ def grid_matrices3D(arr, n_points):
     """
     x = arr[0]
     y = arr[1]
-    z = arr[2]
+
+    if arr.shape[0] == 2:
+        z = np.zeros(arr.shape[1])
+    else:
+        z = arr[2]
 
     xi = np.linspace(min(x), max(x), num=n_points)
     yi = np.linspace(min(y), max(y), num=n_points)
