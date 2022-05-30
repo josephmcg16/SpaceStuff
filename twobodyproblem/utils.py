@@ -194,4 +194,16 @@ def grid_matrices3D(arr, n_points):
     x_grid, y_grid = np.meshgrid(xi, yi)
     z_grid = griddata((x, y), z, (x_grid, y_grid), method='cubic')
 
+    inds = np.isnan(z_grid)
+
+    z_grid_nonan = z_grid[~inds]
+    n = int(np.sqrt(len(z_grid_nonan)))
+
+    if n**2 != float(len(z_grid_nonan)):
+        return x_grid, y_grid, z_grid
+
+    z_grid = z_grid_nonan.reshape(n, n)
+    x_grid = x_grid[~inds].reshape(n, n)
+    y_grid = y_grid[~inds].reshape(n, n)
+
     return x_grid, y_grid, z_grid
